@@ -74,9 +74,26 @@ bool selectionSort(
     return false;
 }
 
-// ==============================
-// TODO: Implement insertion sort
-// ==============================
+bool insertionSort(CountingVector<int> &numbers, int &cursorPos, int &comparisons, int &sortedIndex)
+{
+    if (numbers[cursorPos] < numbers[cursorPos - 1])
+    {
+        std::swap(numbers[cursorPos], numbers[cursorPos - 1]);
+        cursorPos--;
+    }
+    else
+    {
+        sortedIndex++;
+
+        // Avoid moving cursor off the end
+        if (sortedIndex < numbers.size() - 1)
+            cursorPos = sortedIndex + 1;
+    }
+
+    comparisons++;
+
+    return sortedIndex == numbers.size() - 1;
+}
 
 void playTone(sf::Sound &sound, int frequency, int frameRate)
 {
@@ -123,6 +140,8 @@ void init(SortState state, int n, std::string sortType)
         state.sortedIndex = n - 1;
     else if (sortType == "selection")
         state.sortedIndex = 0;
+    else if (sortType == "insertion")
+        state.sortedIndex = -1;
 
     state.currentMinIndex = 0;
 }
@@ -136,7 +155,7 @@ std::string capitalize(std::string str)
 
 int main(int argc, char *argv[])
 {
-    std::vector<std::string> sortingAlgorithms{"bubble", "selection"};
+    std::vector<std::string> sortingAlgorithms{"bubble", "selection", "insertion"};
 
     if (argc < 4)
     {
@@ -146,6 +165,7 @@ int main(int argc, char *argv[])
                   << "  sortType  - The sorting algorithm to use. Possible values:" << std::endl
                   << "              bubble: Bubble Sort" << std::endl
                   << "              selection: Selection Sort" << std::endl
+                  << "              insertion: Insertion Sort" << std::endl
                   << "  n         - The number of elements to sort." << std::endl
                   << "  frameRate - The number of frames per second." << std::endl
                   << std::endl
@@ -160,7 +180,7 @@ int main(int argc, char *argv[])
     if (it == sortingAlgorithms.end())
     {
         std::cerr << "Invalid input for sortType. "
-                  << "Please provide one of the following options: 'bubble', 'selection'."
+                  << "Please provide one of the following options: 'bubble', 'selection', 'insertion'."
                   << std::endl;
         return 1;
     }
@@ -184,21 +204,6 @@ int main(int argc, char *argv[])
     const int n{std::stoi(argv[2])};
     const int frameRate{std::stoi(argv[3])};
 
-    sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "SFML works!");
-    window.setFramerateLimit(frameRate);
-
-    sf::Font font;
-    font.loadFromFile("NotoSansMono.ttf");
-
-    sf::Text text;
-    text.setFont(font);
-    text.setCharacterSize(20);
-    text.setFillColor(sf::Color::White);
-    text.setPosition(12, 8);
-
-    sf::Sound sound;
-    sound.setVolume(20);
-
     // Generate numbers from 1 to n
     CountingVector<int> numbers;
     for (int i = 1; i <= n; i++)
@@ -215,6 +220,8 @@ int main(int argc, char *argv[])
 
     int currentMinIndex; // For selection sort
 
+    int time{0};
+
     SortState state{
         numbers,
         cursorPos,
@@ -226,6 +233,24 @@ int main(int argc, char *argv[])
         currentMinIndex};
 
     init(state, n, sortType);
+
+    sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "SFML works!");
+    window.setFramerateLimit(frameRate);
+
+
+    sf::Font font;
+    font.loadFromFile("NotoSansMono.ttf");
+
+    sf::Text text;
+    text.setFont(font);
+    text.setCharacterSize(20);
+    text.setFillColor(sf::Color::White);
+    text.setPosition(12, 8);
+
+    sf::Sound sound;
+    sound.setVolume(20);
+
+    sf::Clock clock;
 
     while (window.isOpen())
     {
@@ -245,6 +270,8 @@ int main(int argc, char *argv[])
                 sorted = bubbleSort(numbers, cursorPos, comparisons, sortedIndex);
             else if (sortType == "selection")
                 sorted = selectionSort(numbers, cursorPos, comparisons, sortedIndex, currentMinIndex);
+            else if (sortType == "insertion")
+                sorted = insertionSort(numbers, cursorPos, comparisons, sortedIndex);
         }
         else if (!verified)
         {
@@ -260,9 +287,12 @@ int main(int argc, char *argv[])
 
         window.clear();
 
+        if (!sorted) time = clock.getElapsedTime().asMilliseconds();
+
         text.setString(capitalize(sortType) + " Sort - " +
                        std::to_string(comparisons) + " comparisons, " +
-                       std::to_string(numbers.getAccessCount()) + " array accesses");
+                       std::to_string(numbers.getAccessCount()) + " array accesses, " +
+                       std::to_string(time) + "ms elapsed");
         window.draw(text);
 
         for (int i = 0; i < n; i++)
