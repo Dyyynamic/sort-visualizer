@@ -37,8 +37,6 @@ void playTone(sf::Sound &sound, int frequency, int frameRate)
     delete[] samples;
 }
 
-// This function is kinda unnecessary, but it may be used in the future
-// to reset after a sort before starting a new one
 void initState(SortState &state, std::string sortType, int n)
 {
     // Generate numbers from 1 to n
@@ -68,17 +66,8 @@ void initState(SortState &state, std::string sortType, int n)
     state.currentMinIndex = 0;
 }
 
-std::string capitalize(std::string str)
+void drawBars(sf::RenderWindow &window, SortState &state, int n)
 {
-    str[0] = toupper(str[0]);
-
-    return str;
-}
-
-void drawBars(sf::RenderWindow &window, SortState &state)
-{
-    int n = state.numbers.size();
-
     for (int i = 0; i < n; i++)
     {
         const double barWidth{static_cast<double>(WIDTH) / static_cast<double>(n)};
@@ -186,6 +175,7 @@ int main(int argc, char *argv[])
 
         if (!state.sorted)
         {
+            // Sort
             if (sortType == "bubble")
                 state.sorted = bubbleSort(state);
             else if (sortType == "selection")
@@ -210,13 +200,13 @@ int main(int argc, char *argv[])
 
         if (!state.sorted) time = clock.getElapsedTime().asMilliseconds();
 
-        text.setString(capitalize(sortType) + " Sort - " +
+        text.setString(std::string(1, toupper(sortType[0])) + sortType.substr(1) + " Sort - " +
                        std::to_string(state.comparisons) + " comparisons, " +
                        std::to_string(state.numbers.getAccessCount()) + " array accesses, " +
                        std::to_string(time) + "ms elapsed");
         window.draw(text);
 
-        drawBars(window, state);
+        drawBars(window, state, n);
 
         window.display();
 

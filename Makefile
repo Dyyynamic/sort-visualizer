@@ -1,2 +1,2 @@
 main:
-	g++ main.cpp sorts.cpp -o app -lsfml-graphics -lsfml-audio -lsfml-window -lsfml-system
+	g++ main.cpp sorts.cpp -o sort -lsfml-graphics -lsfml-audio -lsfml-window -lsfml-system
