@@ -6,94 +6,12 @@
 #include <iostream>
 #include <string>
 #include "CountingVector.h"
+#include "SortState.h"
+#include "sorts.h"
 
 // Window dimensions
 const int WIDTH{1200};
 const int HEIGHT{800};
-
-struct SortState
-{
-    CountingVector<int> &numbers;
-    int &cursorPos;
-    bool &sorted;
-    bool &verified;
-    int &comparisons;
-    int &sortedIndex;
-    int &checkingPos;
-    int &currentMinIndex;
-};
-
-bool bubbleSort(CountingVector<int> &numbers, int &cursorPos, int &comparisons, int &sortedIndex)
-{
-    if (numbers[cursorPos] > numbers[cursorPos + 1])
-        std::swap(numbers[cursorPos], numbers[cursorPos + 1]);
-
-    comparisons++;
-    cursorPos++;
-
-    if (cursorPos == sortedIndex)
-    {
-        // Finished sorting
-        if (cursorPos == 1)
-            return true;
-
-        cursorPos = 0;
-        sortedIndex -= 1;
-    }
-
-    return false;
-}
-
-bool selectionSort(
-    CountingVector<int> &numbers,
-    int &cursorPos,
-    int &comparisons,
-    int &sortedIndex,
-    int &currentMinIndex)
-{
-
-    if (numbers[cursorPos] < numbers[currentMinIndex])
-        currentMinIndex = cursorPos;
-
-    comparisons++;
-    cursorPos++;
-
-    if (cursorPos == numbers.size())
-    {
-        std::swap(numbers[sortedIndex], numbers[currentMinIndex]);
-        sortedIndex++;
-        cursorPos = sortedIndex;
-        currentMinIndex = sortedIndex;
-
-        if (sortedIndex == numbers.size() - 1)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool insertionSort(CountingVector<int> &numbers, int &cursorPos, int &comparisons, int &sortedIndex)
-{
-    if (numbers[cursorPos] < numbers[cursorPos - 1])
-    {
-        std::swap(numbers[cursorPos], numbers[cursorPos - 1]);
-        cursorPos--;
-    }
-    else
-    {
-        sortedIndex++;
-
-        // Avoid moving cursor off the end
-        if (sortedIndex < numbers.size() - 1)
-            cursorPos = sortedIndex + 1;
-    }
-
-    comparisons++;
-
-    return sortedIndex == numbers.size() - 1;
-}
 
 void playTone(sf::Sound &sound, int frequency, int frameRate)
 {
@@ -121,8 +39,12 @@ void playTone(sf::Sound &sound, int frequency, int frameRate)
 
 // This function is kinda unnecessary, but it may be used in the future
 // to reset after a sort before starting a new one
-void init(SortState state, int n, std::string sortType)
+void initState(SortState &state, std::string sortType, int n)
 {
+    // Generate numbers from 1 to n
+    for (int i = 1; i <= n; i++)
+        state.numbers.push_back(i);
+
     // Shuffle numbers
     std::shuffle(state.numbers.begin(), state.numbers.end(), std::random_device());
 
@@ -151,6 +73,29 @@ std::string capitalize(std::string str)
     str[0] = toupper(str[0]);
 
     return str;
+}
+
+void drawBars(sf::RenderWindow &window, SortState &state)
+{
+    int n = state.numbers.size();
+
+    for (int i = 0; i < n; i++)
+    {
+        const double barWidth{static_cast<double>(WIDTH) / static_cast<double>(n)};
+        const double barHeight{static_cast<double>(state.numbers[i] * (HEIGHT - 40)) /
+                                static_cast<double>(n)};
+
+        sf::RectangleShape rect(sf::Vector2f(barWidth, barHeight));
+        rect.setPosition(sf::Vector2f(barWidth * i, HEIGHT - barHeight));
+
+        if (i < state.checkingPos)
+            rect.setFillColor(sf::Color::Green);
+
+        if (i == state.cursorPos)
+            rect.setFillColor(sf::Color::Red);
+
+        window.draw(rect);
+    }
 }
 
 int main(int argc, char *argv[])
@@ -204,35 +149,10 @@ int main(int argc, char *argv[])
     const int n{std::stoi(argv[2])};
     const int frameRate{std::stoi(argv[3])};
 
-    // Generate numbers from 1 to n
-    CountingVector<int> numbers;
-    for (int i = 1; i <= n; i++)
-        numbers.push_back(i);
-
-    int cursorPos;
-
-    bool sorted;   // Has the sort finished
-    bool verified; // Has the sort been verified
-
-    int comparisons; // Number of comparisons done
-    int sortedIndex; // The index of the sorted partition
-    int checkingPos; // Current position when verifying the sort
-
-    int currentMinIndex; // For selection sort
-
     int time{0};
 
-    SortState state{
-        numbers,
-        cursorPos,
-        sorted,
-        verified,
-        comparisons,
-        sortedIndex,
-        checkingPos,
-        currentMinIndex};
-
-    init(state, n, sortType);
+    SortState state{};
+    initState(state, sortType, n);
 
     sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "SFML works!");
     window.setFramerateLimit(frameRate);
@@ -262,61 +182,46 @@ int main(int argc, char *argv[])
         }
 
         // Count comparisons when sorting
-        numbers.setAccessCounting(true);
+        state.numbers.setAccessCounting(true);
 
-        if (!sorted)
+        if (!state.sorted)
         {
             if (sortType == "bubble")
-                sorted = bubbleSort(numbers, cursorPos, comparisons, sortedIndex);
+                state.sorted = bubbleSort(state);
             else if (sortType == "selection")
-                sorted = selectionSort(numbers, cursorPos, comparisons, sortedIndex, currentMinIndex);
+                state.sorted = selectionSort(state);
             else if (sortType == "insertion")
-                sorted = insertionSort(numbers, cursorPos, comparisons, sortedIndex);
+                state.sorted = insertionSort(state);
         }
-        else if (!verified)
+        else if (!state.verified)
         {
-            cursorPos = checkingPos;
-            checkingPos++;
+            // Verify sort
+            state.cursorPos = state.checkingPos;
+            state.checkingPos++;
 
-            if (cursorPos == n - 1)
-                verified = true;
+            if (state.cursorPos == n - 1)
+                state.verified = true;
         }
 
         // Disable counting
-        numbers.setAccessCounting(false);
+        state.numbers.setAccessCounting(false);
 
         window.clear();
 
-        if (!sorted) time = clock.getElapsedTime().asMilliseconds();
+        if (!state.sorted) time = clock.getElapsedTime().asMilliseconds();
 
         text.setString(capitalize(sortType) + " Sort - " +
-                       std::to_string(comparisons) + " comparisons, " +
-                       std::to_string(numbers.getAccessCount()) + " array accesses, " +
+                       std::to_string(state.comparisons) + " comparisons, " +
+                       std::to_string(state.numbers.getAccessCount()) + " array accesses, " +
                        std::to_string(time) + "ms elapsed");
         window.draw(text);
 
-        for (int i = 0; i < n; i++)
-        {
-            const double barWidth{static_cast<double>(WIDTH) / static_cast<double>(n)};
-            const double barHeight{static_cast<double>(numbers[i] * (HEIGHT - 40)) /
-                                   static_cast<double>(n)};
-
-            sf::RectangleShape rect(sf::Vector2f(barWidth, barHeight));
-            rect.setPosition(sf::Vector2f(barWidth * i, HEIGHT - barHeight));
-
-            if (i < checkingPos)
-                rect.setFillColor(sf::Color::Green);
-
-            if (i == cursorPos)
-                rect.setFillColor(sf::Color::Red);
-
-            window.draw(rect);
-        }
+        drawBars(window, state);
 
         window.display();
 
-        if (!verified)
-            playTone(sound, 2 * numbers[cursorPos] * HEIGHT / n, frameRate);
+        if (!state.verified)
+            playTone(sound, 2 * state.numbers[state.cursorPos] * HEIGHT / n, frameRate);
     }
 
     return 0;
