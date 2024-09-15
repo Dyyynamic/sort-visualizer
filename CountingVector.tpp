@@ -79,3 +79,9 @@ void CountingVector<T>::disableAccessCounting()
 {
     countAccesses = false;
 }
+
+template <typename T>
+bool CountingVector<T>::getCountAccesses() const
+{
+    return countAccesses;
+}

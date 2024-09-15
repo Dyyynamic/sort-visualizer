@@ -1,6 +1,8 @@
 #include "sorts.h"
 #include <thread>
 #include <mutex>
+#include <chrono>
+#include <iostream>
 
 void bubbleSort(SortState &state, int sortingDelay)
 {
@@ -22,7 +24,7 @@ void bubbleSort(SortState &state, int sortingDelay)
             // Unlock before sleeping
             lock.unlock();
 
-            std::this_thread::sleep_for(std::chrono::microseconds(sortingDelay));
+            std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
         }
     }
 
@@ -51,7 +53,7 @@ void selectionSort(SortState &state, int sortingDelay)
             // Unlock before sleeping
             lock.unlock();
 
-            std::this_thread::sleep_for(std::chrono::microseconds(sortingDelay));
+            std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
         }
 
         if (i != minIndex)
@@ -72,9 +74,6 @@ void selectionSort(SortState &state, int sortingDelay)
 
 void insertionSort(SortState &state, int sortingDelay)
 {
-    // BUG: In the visualization, this sort causes popping, seemingly caused by the entire vector
-    //      being accessed at onece. It is not clear to me why this happens.
-
     for (int i = 1; i < state.numbers.size(); i++)
     {
         std::unique_lock<std::mutex> lock(state.mtx);
@@ -95,7 +94,12 @@ void insertionSort(SortState &state, int sortingDelay)
             state.numbers.enableAccessCounting();
 
             if (j < 0 || temp >= state.numbers[j])
+            {
+                // Make sure access counting is disabled before breaking
+                // Lock is unlocked automatically when it goes out of scope
+                state.numbers.disableAccessCounting();
                 break;
+            }
 
             state.numbers[j + 1] = state.numbers[j];
             state.comparisons++;
@@ -107,7 +111,7 @@ void insertionSort(SortState &state, int sortingDelay)
             // Unlock before sleeping
             lock.unlock();
 
-            std::this_thread::sleep_for(std::chrono::microseconds(sortingDelay));
+            std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
         }
 
         lock.lock();
