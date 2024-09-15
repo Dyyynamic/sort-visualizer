@@ -3,7 +3,7 @@
 #include <algorithm>
 
 template <typename T>
-CountingVector<T>::CountingVector() : accessCount(0), countAccesses(false) {}
+CountingVector<T>::CountingVector() : vec(), accessed(), accessCount(0), countAccesses(false) {}
 
 template <typename T>
 T &CountingVector<T>::operator[](size_t index)
@@ -78,10 +78,4 @@ template <typename T>
 void CountingVector<T>::disableAccessCounting()
 {
     countAccesses = false;
-}
-
-template <typename T>
-bool CountingVector<T>::getCountAccesses() const
-{
-    return countAccesses;
 }

@@ -30,8 +30,6 @@ public:
 
     void enableAccessCounting();
     void disableAccessCounting();
-
-    bool getCountAccesses() const;
 };
 
 #include "CountingVector.tpp"

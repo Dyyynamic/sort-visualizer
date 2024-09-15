@@ -18,5 +18,5 @@ sudo pacman -S sfml
 Compile and run:
 
 ```bash
-make && ./app
+make && ./sort
 ```
