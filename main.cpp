@@ -1,99 +1,103 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 #include <vector>
+#include <thread>
+#include <mutex>
+#include <chrono>
 #include <algorithm>
 #include <random>
 #include <iostream>
 #include <string>
+#include <functional>
 #include "CountingVector.h"
-#include "SortState.h"
 #include "sorts.h"
 
-// Window dimensions
+// Global constants
 const int WIDTH{1200};
 const int HEIGHT{800};
+const int LIGHT_DURATION{50}; // In milliseconds
 
-void playTone(sf::Sound &sound, int frequency, int frameRate)
+// Shared data
+CountingVector<int> numbers{};
+std::mutex mtx;
+bool sortingComplete{false};
+int comparisons{0};
+
+CountingVector<int> prevNumbers{};
+std::vector<int> lastChanged{};
+
+int timeElapsed{0};
+int sortTime{0};
+int sortingDelay{0};
+int checkingIndex{-1};
+int prevCheckingIndex{-1};
+
+void verify(CountingVector<int> &numbers, int sortingDelay)
+{
+    for (int i = 0; i < numbers.size(); i++)
+    {
+        checkingIndex = i;
+
+        std::unique_lock<std::mutex> lock(mtx);
+
+        if (numbers[i] < numbers[i - 1])
+        {
+            std::cerr << "Sorting failed." << std::endl;
+            exit(1);
+        }
+
+        lock.unlock();
+
+        std::this_thread::sleep_for(std::chrono::microseconds(sortingDelay));
+    }
+}
+
+void playTone(int frequency)
 {
     const unsigned sampleRate = 44100;
-    const double duration = 1 / static_cast<double>(frameRate);
-    const unsigned numSamples = sampleRate * duration;
-    sf::Int16 *samples = new sf::Int16[numSamples];
+    const double sortingDelaySeconds = sortingDelay / 1000000.0;
+    const unsigned numSamples = static_cast<unsigned>(sampleRate * sortingDelaySeconds);
 
-    for (unsigned i = 0; i < numSamples; ++i)
+    if (numSamples == 0) {
+        std::cerr << "Error: numSamples is zero. Check sortingDelay value." << std::endl;
+        return;
+    }
+
+    std::vector<sf::Int16> samples(numSamples); // Pre-allocate size
+
+    for (unsigned i = 0; i < numSamples; i++)
     {
-        double time = i / static_cast<double>(sampleRate);
-        samples[i] = 32767 * sin(2 * M_PI * frequency * time);
+        const double t = i / static_cast<double>(sampleRate);
+        samples[i] = static_cast<sf::Int16>(std::sin(2 * M_PI * frequency * t) * 30000);
     }
 
     sf::SoundBuffer buffer;
-    buffer.loadFromSamples(samples, numSamples, 1, sampleRate);
+    if (!buffer.loadFromSamples(samples.data(), samples.size(), 1, sampleRate))
+    {
+        std::cerr << "Error: Failed to load sound buffer from samples." << std::endl;
+        return;
+    }
 
+    sf::Sound sound;
     sound.setBuffer(buffer);
+    sound.setVolume(5);
     sound.play();
 
-    sf::sleep(sf::seconds(duration));
-
-    delete[] samples;
-}
-
-void initState(SortState &state, std::string sortType, int n)
-{
-    // Generate numbers from 1 to n
-    for (int i = 1; i <= n; i++)
-        state.numbers.push_back(i);
-
-    // Shuffle numbers
-    std::shuffle(state.numbers.begin(), state.numbers.end(), std::random_device());
-
-    state.numbers.setAccessCount(0);
-
-    state.cursorPos = 0;
-
-    state.sorted = false;
-    state.verified = false;
-
-    state.comparisons = 0;
-    state.checkingPos = 0;
-
-    if (sortType == "bubble")
-        state.sortedIndex = n - 1;
-    else if (sortType == "selection")
-        state.sortedIndex = 0;
-    else if (sortType == "insertion")
-        state.sortedIndex = -1;
-
-    state.currentMinIndex = 0;
-}
-
-void drawBars(sf::RenderWindow &window, SortState &state, int n)
-{
-    for (int i = 0; i < n; i++)
-    {
-        const double barWidth{static_cast<double>(WIDTH) / static_cast<double>(n)};
-        const double barHeight{static_cast<double>(state.numbers[i] * (HEIGHT - 40)) /
-                                static_cast<double>(n)};
-
-        sf::RectangleShape rect(sf::Vector2f(barWidth, barHeight));
-        rect.setPosition(sf::Vector2f(barWidth * i, HEIGHT - barHeight));
-
-        if (i < state.checkingPos)
-            rect.setFillColor(sf::Color::Green);
-
-        if (i == state.cursorPos)
-            rect.setFillColor(sf::Color::Red);
-
-        window.draw(rect);
-    }
+    std::this_thread::sleep_for(std::chrono::microseconds(sortingDelay * 10));
 }
 
 int main(int argc, char *argv[])
 {
-    std::vector<std::string> sortingAlgorithms{"bubble", "selection", "insertion"};
+    std::map<std::string, std::function<void(CountingVector<int> &, std::mutex &, int &, int, bool &)>>
+        sortingAlgorithms{
+            {"bubble", bubbleSort},
+            {"selection", selectionSort},
+            {"insertion", insertionSort},
+        };
 
     if (argc < 4)
     {
-        std::cerr << "Usage: " << argv[0] << " <sortType> <n> <frameRate>" << std::endl
+        std::cerr << "Usage: " << argv[0] << " <sortType> <n> <delay>" << std::endl
                   << std::endl
                   << "Arguments:" << std::endl
                   << "  sortType  - The sorting algorithm to use. Possible values:" << std::endl
@@ -101,7 +105,7 @@ int main(int argc, char *argv[])
                   << "              selection: Selection Sort" << std::endl
                   << "              insertion: Insertion Sort" << std::endl
                   << "  n         - The number of elements to sort." << std::endl
-                  << "  frameRate - The number of frames per second." << std::endl
+                  << "  delay     - Sorting delay in microseconds." << std::endl
                   << std::endl
                   << "Example: " << std::endl
                   << "  " << argv[0] << " bubble 10 60"
@@ -109,9 +113,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    auto it = std::find(sortingAlgorithms.begin(), sortingAlgorithms.end(), argv[1]);
-
-    if (it == sortingAlgorithms.end())
+    if (sortingAlgorithms.find(argv[1]) == sortingAlgorithms.end())
     {
         std::cerr << "Invalid input for sortType. "
                   << "Please provide one of the following options: 'bubble', 'selection', 'insertion'."
@@ -128,24 +130,16 @@ int main(int argc, char *argv[])
 
     if (std::isdigit(argv[3][0]) == 0 || std::stoi(argv[3]) < 1)
     {
-        std::cerr << "Invalid input for frameRate. Please provide an integer greater than 0."
+        std::cerr << "Invalid input for delay. Please provide an integer greater than 0."
                   << std::endl;
         return 1;
     }
 
-    // Command line arguments
-    const std::string sortType{argv[1]};
-    const int n{std::stoi(argv[2])};
-    const int frameRate{std::stoi(argv[3])};
+    std::string sortType{argv[1]};
+    int n{std::stoi(argv[2])};
+    sortingDelay = std::stoi(argv[3]);
 
-    int time{0};
-
-    SortState state{};
-    initState(state, sortType, n);
-
-    sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "SFML works!");
-    window.setFramerateLimit(frameRate);
-
+    sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "Sorting Visualization");
 
     sf::Font font;
     font.loadFromFile("NotoSansMono.ttf");
@@ -156,10 +150,25 @@ int main(int argc, char *argv[])
     text.setFillColor(sf::Color::White);
     text.setPosition(12, 8);
 
-    sf::Sound sound;
-    sound.setVolume(20);
-
     sf::Clock clock;
+
+    for (int i = 0; i < n; i++)
+        numbers.push_back(i + 1);
+
+    std::shuffle(numbers.begin(), numbers.end(), std::random_device());
+
+    prevNumbers = numbers;
+
+    lastChanged.resize(numbers.size(), 0);
+
+    // Sort on a separate thread
+    std::thread sortThread(
+        sortingAlgorithms[sortType],
+        std::ref(numbers),
+        std::ref(mtx),
+        std::ref(comparisons),
+        sortingDelay,
+        std::ref(sortingComplete));
 
     while (window.isOpen())
     {
@@ -170,48 +179,70 @@ int main(int argc, char *argv[])
                 window.close();
         }
 
-        // Count comparisons when sorting
-        state.numbers.setAccessCounting(true);
-
-        if (!state.sorted)
-        {
-            // Sort
-            if (sortType == "bubble")
-                state.sorted = bubbleSort(state);
-            else if (sortType == "selection")
-                state.sorted = selectionSort(state);
-            else if (sortType == "insertion")
-                state.sorted = insertionSort(state);
-        }
-        else if (!state.verified)
-        {
-            // Verify sort
-            state.cursorPos = state.checkingPos;
-            state.checkingPos++;
-
-            if (state.cursorPos == n - 1)
-                state.verified = true;
-        }
-
-        // Disable counting
-        state.numbers.setAccessCounting(false);
-
         window.clear();
 
-        if (!state.sorted) time = clock.getElapsedTime().asMilliseconds();
+        timeElapsed = clock.getElapsedTime().asMilliseconds();
+
+        for (int i = 0; i < numbers.size(); ++i)
+        {
+            mtx.lock();
+
+            const double barWidth{static_cast<double>(WIDTH) / numbers.size()};
+            const double barHeight{static_cast<double>(numbers[i] * (HEIGHT - 40)) / numbers.size()};
+
+            // TODO: This should be changed so a bar lights up and a sound plays when
+            //       a position in checked, not just when a number changes
+            //       For reference: https://www.youtube.com/watch?v=kPRA0W1kECg
+            if (numbers[i] != prevNumbers[i])
+            {
+                lastChanged[i] = timeElapsed;
+                prevNumbers[i] = numbers[i];
+
+                // Play tone when a number changes
+                std::thread playToneThread(playTone, 2 * numbers[i] * HEIGHT / n);
+                playToneThread.detach();
+            }
+
+            mtx.unlock();
+
+            sf::RectangleShape rect(sf::Vector2f(barWidth, barHeight));
+
+            // Light up the bar for LIGHT_DURATION milliseconds
+            if (timeElapsed - lastChanged[i] < LIGHT_DURATION || i == checkingIndex)
+                rect.setFillColor(sf::Color::Red);
+
+            if (checkingIndex != prevCheckingIndex)
+            {
+                prevCheckingIndex = checkingIndex;
+
+                // Play tone when checking index changes
+                std::thread playToneThread(playTone, 2 * numbers[checkingIndex] * HEIGHT / n);
+                playToneThread.detach();
+            }
+
+            if (i < checkingIndex)
+                rect.setFillColor(sf::Color::Green);
+
+            rect.setPosition(sf::Vector2f(barWidth * i, HEIGHT - barHeight));
+
+            window.draw(rect);
+        }
+
+        if (sortingComplete && sortTime == 0)
+        {
+            sortTime = timeElapsed;
+
+            std::thread verifyingThread(verify, std::ref(numbers), sortingDelay);
+            verifyingThread.detach();
+        }
 
         text.setString(std::string(1, toupper(sortType[0])) + sortType.substr(1) + " Sort - " +
-                       std::to_string(state.comparisons) + " comparisons, " +
-                       std::to_string(state.numbers.getAccessCount()) + " array accesses, " +
-                       std::to_string(time) + "ms elapsed");
+                       std::to_string(comparisons) + " comparisons, " +
+                       std::to_string(numbers.getAccessCount()) + " array accesses, " +
+                       std::to_string(sortingComplete ? sortTime : timeElapsed) + "ms elapsed");
         window.draw(text);
 
-        drawBars(window, state, n);
-
         window.display();
-
-        if (!state.verified)
-            playTone(sound, 2 * state.numbers[state.cursorPos] * HEIGHT / n, frameRate);
     }
 
     return 0;

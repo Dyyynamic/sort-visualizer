@@ -24,8 +24,8 @@ public:
 
     int size() const;
     int getAccessCount() const;
-    void setAccessCount(int value);
-    void setAccessCounting(bool value);
+    void enableAccessCounting();
+    void disableAccessCounting();
 };
 
 #include "CountingVector.tpp"

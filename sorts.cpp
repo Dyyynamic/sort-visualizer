@@ -1,66 +1,134 @@
 #include "sorts.h"
+#include <thread>
 
-bool bubbleSort(SortState &state)
+void bubbleSort(
+    CountingVector<int> &numbers,
+    std::mutex &mtx,
+    int &comparisons,
+    int sortingDelay,
+    bool &sortingComplete)
 {
-    if (state.numbers[state.cursorPos] > state.numbers[state.cursorPos + 1])
-        std::swap(state.numbers[state.cursorPos], state.numbers[state.cursorPos + 1]);
-
-    state.comparisons++;
-    state.cursorPos++;
-
-    if (state.cursorPos == state.sortedIndex)
+    for (int i = 0; i < numbers.size(); i++)
     {
-        // Finished sorting
-        if (state.cursorPos == 1)
-            return true;
+        for (int j = 0; j < numbers.size() - i - 1; j++)
+        {
+            std::unique_lock<std::mutex> lock(mtx);
 
-        state.cursorPos = 0;
-        state.sortedIndex -= 1;
+            numbers.enableAccessCounting();
+
+            if (numbers[j] > numbers[j + 1])
+                std::swap(numbers[j], numbers[j + 1]);
+
+            comparisons++;
+
+            numbers.disableAccessCounting();
+
+            // Unlock before sleeping
+            lock.unlock();
+
+            std::this_thread::sleep_for(std::chrono::microseconds(sortingDelay));
+        }
     }
 
-    return false;
+    sortingComplete = true;
 }
 
-bool selectionSort(SortState &state)
+void selectionSort(
+    CountingVector<int> &numbers,
+    std::mutex &mtx,
+    int &comparisons,
+    int sortingDelay,
+    bool &sortingComplete)
 {
-
-    if (state.numbers[state.cursorPos] < state.numbers[state.currentMinIndex])
-        state.currentMinIndex = state.cursorPos;
-
-    state.comparisons++;
-    state.cursorPos++;
-
-    if (state.cursorPos == state.numbers.size())
+    for (int i = 0; i < numbers.size() - 1; i++)
     {
-        std::swap(state.numbers[state.sortedIndex], state.numbers[state.currentMinIndex]);
-        state.sortedIndex++;
-        state.cursorPos = state.sortedIndex;
-        state.currentMinIndex = state.sortedIndex;
+        int minIndex = i;
 
-        if (state.sortedIndex == state.numbers.size() - 1)
-            return true;
+        for (int j = i + 1; j < numbers.size(); j++)
+        {
+            std::unique_lock<std::mutex> lock(mtx);
+
+            numbers.enableAccessCounting();
+
+            if (numbers[j] < numbers[minIndex])
+                minIndex = j;
+
+            comparisons++;
+
+            numbers.disableAccessCounting();
+
+            // Unlock before sleeping
+            lock.unlock();
+
+            std::this_thread::sleep_for(std::chrono::microseconds(sortingDelay));
+        }
+
+        if (i != minIndex)
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+
+            numbers.enableAccessCounting();
+
+            std::swap(numbers[i], numbers[minIndex]);
+            comparisons++;
+
+            numbers.disableAccessCounting();
+        }
     }
 
-    return false;
+    sortingComplete = true;
 }
 
-bool insertionSort(SortState &state)
+void insertionSort(
+    CountingVector<int> &numbers,
+    std::mutex &mtx,
+    int &comparisons,
+    int sortingDelay,
+    bool &sortingComplete)
 {
-    if (state.numbers[state.cursorPos] < state.numbers[state.cursorPos - 1])
+    for (int i = 1; i < numbers.size(); i++)
     {
-        std::swap(state.numbers[state.cursorPos], state.numbers[state.cursorPos - 1]);
-        state.cursorPos--;
+        std::unique_lock<std::mutex> lock(mtx);
+        numbers.enableAccessCounting();
+
+        int temp = numbers[i];
+
+        numbers.disableAccessCounting();
+        lock.unlock();
+
+        int j = i - 1;
+
+        // Using a while true loop so the mutex is locked before checking
+        while (true)
+        {
+            std::unique_lock<std::mutex> lock(mtx);
+
+            numbers.enableAccessCounting();
+
+            if (j < 0 || temp >= numbers[j])
+                break;
+
+            numbers[j + 1] = numbers[j];
+            comparisons++;
+
+            j -= 1;
+
+            numbers.disableAccessCounting();
+
+            // Unlock before sleeping
+            lock.unlock();
+
+            std::this_thread::sleep_for(std::chrono::microseconds(sortingDelay));
+        }
+
+        lock.lock();
+        numbers.enableAccessCounting();
+
+        numbers[j + 1] = temp;
+
+        numbers.disableAccessCounting();
+        lock.unlock();
     }
-    else
-    {
-        state.sortedIndex++;
 
-        // Avoid moving cursor off the end
-        if (state.sortedIndex < state.numbers.size() - 1)
-            state.cursorPos = state.sortedIndex + 1;
-    }
-
-    state.comparisons++;
-
-    return state.sortedIndex == state.numbers.size() - 1;
+    sortingComplete = true;
 }

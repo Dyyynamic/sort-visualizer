@@ -51,13 +51,13 @@ int CountingVector<T>::getAccessCount() const
 }
 
 template <typename T>
-void CountingVector<T>::setAccessCount(int value)
+void CountingVector<T>::enableAccessCounting()
 {
-    accessCount = value;
+    countAccesses = true;
 }
 
 template <typename T>
-void CountingVector<T>::setAccessCounting(bool value)
+void CountingVector<T>::disableAccessCounting()
 {
-    countAccesses = value;
+    countAccesses = false;
 }

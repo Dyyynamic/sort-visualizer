@@ -2,9 +2,28 @@
 #define SORTS_H
 
 #include "SortState.h"
+#include "CountingVector.h"
+#include <mutex>
 
-bool bubbleSort(SortState &state);
-bool selectionSort(SortState &state);
-bool insertionSort(SortState &state);
+void bubbleSort(
+    CountingVector<int> &numbers,
+    std::mutex &mtx,
+    int &comparisons,
+    int sortingDelay,
+    bool &sortingComplete);
+
+void selectionSort(
+    CountingVector<int> &numbers,
+    std::mutex &mtx,
+    int &comparisons,
+    int sortingDelay,
+    bool &sortingComplete);
+
+void insertionSort(
+    CountingVector<int> &numbers,
+    std::mutex &mtx,
+    int &comparisons,
+    int sortingDelay,
+    bool &sortingComplete);
 
 #endif // SORTS_H
