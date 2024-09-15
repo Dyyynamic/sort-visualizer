@@ -23,8 +23,7 @@ std::mutex mtx;
 bool sortingComplete{false};
 int comparisons{0};
 
-CountingVector<int> prevNumbers{};
-std::vector<int> lastChanged{};
+std::vector<int> lastChecked{};
 
 int timeElapsed{0};
 int sortTime{0};
@@ -157,9 +156,7 @@ int main(int argc, char *argv[])
 
     std::shuffle(numbers.begin(), numbers.end(), std::random_device());
 
-    prevNumbers = numbers;
-
-    lastChanged.resize(numbers.size(), 0);
+    lastChecked.resize(numbers.size(), 0);
 
     // Sort on a separate thread
     std::thread sortThread(
@@ -190,13 +187,10 @@ int main(int argc, char *argv[])
             const double barWidth{static_cast<double>(WIDTH) / numbers.size()};
             const double barHeight{static_cast<double>(numbers[i] * (HEIGHT - 40)) / numbers.size()};
 
-            // TODO: This should be changed so a bar lights up and a sound plays when
-            //       a position in checked, not just when a number changes
-            //       For reference: https://www.youtube.com/watch?v=kPRA0W1kECg
-            if (numbers[i] != prevNumbers[i])
+            if (numbers.isAccessed(i))
             {
-                lastChanged[i] = timeElapsed;
-                prevNumbers[i] = numbers[i];
+                lastChecked[i] = timeElapsed;
+                numbers.clearAccessed(i);
 
                 // Play tone when a number changes
                 std::thread playToneThread(playTone, 2 * numbers[i] * HEIGHT / n);
@@ -208,7 +202,7 @@ int main(int argc, char *argv[])
             sf::RectangleShape rect(sf::Vector2f(barWidth, barHeight));
 
             // Light up the bar for LIGHT_DURATION milliseconds
-            if (timeElapsed - lastChanged[i] < LIGHT_DURATION || i == checkingIndex)
+            if (timeElapsed - lastChecked[i] < LIGHT_DURATION || i == checkingIndex)
                 rect.setFillColor(sf::Color::Red);
 
             if (checkingIndex != prevCheckingIndex)

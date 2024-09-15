@@ -86,6 +86,9 @@ void insertionSort(
     int sortingDelay,
     bool &sortingComplete)
 {
+    // BUG: In the visualization, this sort causes popping, seemingly caused by the entire vector
+    //      being accessed at onece. It is not clear to me why this happens.
+
     for (int i = 1; i < numbers.size(); i++)
     {
         std::unique_lock<std::mutex> lock(mtx);

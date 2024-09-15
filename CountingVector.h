@@ -8,6 +8,7 @@ class CountingVector
 {
 private:
     std::vector<T> vec;
+    std::vector<bool> accessed;
     int accessCount{0};
     bool countAccesses{false};
 
@@ -24,6 +25,9 @@ public:
 
     int size() const;
     int getAccessCount() const;
+    bool isAccessed(int index) const;
+    void clearAccessed(int index);
+
     void enableAccessCounting();
     void disableAccessCounting();
 };

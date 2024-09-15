@@ -9,7 +9,11 @@ template <typename T>
 T &CountingVector<T>::operator[](size_t index)
 {
     if (countAccesses)
+    {
         ++accessCount;
+        accessed[index] = true;
+    }
+
     return vec[index];
 }
 
@@ -24,6 +28,8 @@ template <typename T>
 void CountingVector<T>::push_back(const T &value)
 {
     vec.push_back(value);
+
+    accessed.push_back(false);
 }
 
 template <typename T>
@@ -48,6 +54,18 @@ template <typename T>
 int CountingVector<T>::getAccessCount() const
 {
     return accessCount;
+}
+
+template <typename T>
+bool CountingVector<T>::isAccessed(int index) const
+{
+    return accessed[index];
+}
+
+template <typename T>
+void CountingVector<T>::clearAccessed(int index)
+{
+    accessed[index] = false;
 }
 
 template <typename T>
