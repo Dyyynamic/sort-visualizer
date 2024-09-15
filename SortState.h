@@ -2,17 +2,14 @@
 #define SORTSTATE_H
 
 #include "CountingVector.h"
+#include <mutex>
 
 struct SortState
 {
     CountingVector<int> numbers;
-    int cursorPos;
-    bool sorted;
-    bool verified;
+    std::mutex mtx;
     int comparisons;
-    int sortedIndex;
-    int checkingPos;
-    int currentMinIndex;
+    bool sortingComplete;
 };
 
 #endif // SORTSTATE_H

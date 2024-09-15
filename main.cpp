@@ -11,17 +11,20 @@
 #include <functional>
 #include "CountingVector.h"
 #include "sorts.h"
+#include "SortState.h"
 
 // Global constants
 const int WIDTH{1200};
 const int HEIGHT{800};
 const int LIGHT_DURATION{50}; // In milliseconds
 
-// Shared data
-CountingVector<int> numbers{};
-std::mutex mtx;
-bool sortingComplete{false};
-int comparisons{0};
+// Shared state
+SortState state = {
+    CountingVector<int>(), // numbers
+    std::mutex(),          // mtx
+    0,                     // comparisons
+    false                  // sortingComplete
+};
 
 std::vector<int> lastChecked{};
 
@@ -31,15 +34,15 @@ int sortingDelay{0};
 int checkingIndex{-1};
 int prevCheckingIndex{-1};
 
-void verify(CountingVector<int> &numbers, int sortingDelay)
+void verify(SortState &state, int sortingDelay)
 {
-    for (int i = 0; i < numbers.size(); i++)
+    for (int i = 0; i < state.numbers.size(); i++)
     {
         checkingIndex = i;
 
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(state.mtx);
 
-        if (numbers[i] < numbers[i - 1])
+        if (state.numbers[i] < state.numbers[i - 1])
         {
             std::cerr << "Sorting failed." << std::endl;
             exit(1);
@@ -57,7 +60,8 @@ void playTone(int frequency)
     const double sortingDelaySeconds = sortingDelay / 1000000.0;
     const unsigned numSamples = static_cast<unsigned>(sampleRate * sortingDelaySeconds);
 
-    if (numSamples == 0) {
+    if (numSamples == 0)
+    {
         std::cerr << "Error: numSamples is zero. Check sortingDelay value." << std::endl;
         return;
     }
@@ -87,7 +91,7 @@ void playTone(int frequency)
 
 int main(int argc, char *argv[])
 {
-    std::map<std::string, std::function<void(CountingVector<int> &, std::mutex &, int &, int, bool &)>>
+    std::map<std::string, std::function<void(SortState &, int)>>
         sortingAlgorithms{
             {"bubble", bubbleSort},
             {"selection", selectionSort},
@@ -152,20 +156,14 @@ int main(int argc, char *argv[])
     sf::Clock clock;
 
     for (int i = 0; i < n; i++)
-        numbers.push_back(i + 1);
+        state.numbers.push_back(i + 1);
 
-    std::shuffle(numbers.begin(), numbers.end(), std::random_device());
+    std::shuffle(state.numbers.begin(), state.numbers.end(), std::random_device());
 
-    lastChecked.resize(numbers.size(), 0);
+    lastChecked.resize(state.numbers.size(), 0);
 
     // Sort on a separate thread
-    std::thread sortThread(
-        sortingAlgorithms[sortType],
-        std::ref(numbers),
-        std::ref(mtx),
-        std::ref(comparisons),
-        sortingDelay,
-        std::ref(sortingComplete));
+    std::thread sortThread(sortingAlgorithms[sortType], std::ref(state), sortingDelay);
 
     while (window.isOpen())
     {
@@ -180,39 +178,39 @@ int main(int argc, char *argv[])
 
         timeElapsed = clock.getElapsedTime().asMilliseconds();
 
-        for (int i = 0; i < numbers.size(); ++i)
+        for (int i = 0; i < state.numbers.size(); ++i)
         {
-            mtx.lock();
+            state.mtx.lock();
 
-            const double barWidth{static_cast<double>(WIDTH) / numbers.size()};
-            const double barHeight{static_cast<double>(numbers[i] * (HEIGHT - 40)) / numbers.size()};
+            const double barWidth{static_cast<double>(WIDTH) / state.numbers.size()};
+            const double barHeight{static_cast<double>(state.numbers[i] * (HEIGHT - 40)) / state.numbers.size()};
 
-            if (numbers.isAccessed(i))
+            if (state.numbers.isAccessed(i))
             {
                 lastChecked[i] = timeElapsed;
-                numbers.clearAccessed(i);
+                state.numbers.clearAccessed(i);
 
                 // Play tone when a number changes
-                std::thread playToneThread(playTone, 2 * numbers[i] * HEIGHT / n);
+                std::thread playToneThread(playTone, 2 * state.numbers[i] * HEIGHT / n);
                 playToneThread.detach();
             }
-
-            mtx.unlock();
-
-            sf::RectangleShape rect(sf::Vector2f(barWidth, barHeight));
-
-            // Light up the bar for LIGHT_DURATION milliseconds
-            if (timeElapsed - lastChecked[i] < LIGHT_DURATION || i == checkingIndex)
-                rect.setFillColor(sf::Color::Red);
 
             if (checkingIndex != prevCheckingIndex)
             {
                 prevCheckingIndex = checkingIndex;
 
                 // Play tone when checking index changes
-                std::thread playToneThread(playTone, 2 * numbers[checkingIndex] * HEIGHT / n);
+                std::thread playToneThread(playTone, 2 * state.numbers[checkingIndex] * HEIGHT / n);
                 playToneThread.detach();
             }
+
+            state.mtx.unlock();
+
+            sf::RectangleShape rect(sf::Vector2f(barWidth, barHeight));
+
+            // Light up the bar for LIGHT_DURATION milliseconds
+            if (timeElapsed - lastChecked[i] < LIGHT_DURATION || i == checkingIndex)
+                rect.setFillColor(sf::Color::Red);
 
             if (i < checkingIndex)
                 rect.setFillColor(sf::Color::Green);
@@ -222,18 +220,18 @@ int main(int argc, char *argv[])
             window.draw(rect);
         }
 
-        if (sortingComplete && sortTime == 0)
+        if (state.sortingComplete && sortTime == 0)
         {
             sortTime = timeElapsed;
 
-            std::thread verifyingThread(verify, std::ref(numbers), sortingDelay);
+            std::thread verifyingThread(verify, std::ref(state), sortingDelay);
             verifyingThread.detach();
         }
 
         text.setString(std::string(1, toupper(sortType[0])) + sortType.substr(1) + " Sort - " +
-                       std::to_string(comparisons) + " comparisons, " +
-                       std::to_string(numbers.getAccessCount()) + " array accesses, " +
-                       std::to_string(sortingComplete ? sortTime : timeElapsed) + "ms elapsed");
+                       std::to_string(state.comparisons) + " comparisons, " +
+                       std::to_string(state.numbers.getAccessCount()) + " array accesses, " +
+                       std::to_string(state.sortingComplete ? sortTime : timeElapsed) + "ms elapsed");
         window.draw(text);
 
         window.display();

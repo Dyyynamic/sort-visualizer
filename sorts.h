@@ -3,27 +3,9 @@
 
 #include "SortState.h"
 #include "CountingVector.h"
-#include <mutex>
 
-void bubbleSort(
-    CountingVector<int> &numbers,
-    std::mutex &mtx,
-    int &comparisons,
-    int sortingDelay,
-    bool &sortingComplete);
-
-void selectionSort(
-    CountingVector<int> &numbers,
-    std::mutex &mtx,
-    int &comparisons,
-    int sortingDelay,
-    bool &sortingComplete);
-
-void insertionSort(
-    CountingVector<int> &numbers,
-    std::mutex &mtx,
-    int &comparisons,
-    int sortingDelay,
-    bool &sortingComplete);
+void bubbleSort(SortState &state, int sortingDelay);
+void selectionSort(SortState &state, int sortingDelay);
+void insertionSort(SortState &state, int sortingDelay);
 
 #endif // SORTS_H

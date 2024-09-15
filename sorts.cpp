@@ -1,27 +1,23 @@
 #include "sorts.h"
 #include <thread>
+#include <mutex>
 
-void bubbleSort(
-    CountingVector<int> &numbers,
-    std::mutex &mtx,
-    int &comparisons,
-    int sortingDelay,
-    bool &sortingComplete)
+void bubbleSort(SortState &state, int sortingDelay)
 {
-    for (int i = 0; i < numbers.size(); i++)
+    for (int i = 0; i < state.numbers.size(); i++)
     {
-        for (int j = 0; j < numbers.size() - i - 1; j++)
+        for (int j = 0; j < state.numbers.size() - i - 1; j++)
         {
-            std::unique_lock<std::mutex> lock(mtx);
+            std::unique_lock<std::mutex> lock(state.mtx);
 
-            numbers.enableAccessCounting();
+            state.numbers.enableAccessCounting();
 
-            if (numbers[j] > numbers[j + 1])
-                std::swap(numbers[j], numbers[j + 1]);
+            if (state.numbers[j] > state.numbers[j + 1])
+                std::swap(state.numbers[j], state.numbers[j + 1]);
 
-            comparisons++;
+            state.comparisons++;
 
-            numbers.disableAccessCounting();
+            state.numbers.disableAccessCounting();
 
             // Unlock before sleeping
             lock.unlock();
@@ -30,32 +26,27 @@ void bubbleSort(
         }
     }
 
-    sortingComplete = true;
+    state.sortingComplete = true;
 }
 
-void selectionSort(
-    CountingVector<int> &numbers,
-    std::mutex &mtx,
-    int &comparisons,
-    int sortingDelay,
-    bool &sortingComplete)
+void selectionSort(SortState &state, int sortingDelay)
 {
-    for (int i = 0; i < numbers.size() - 1; i++)
+    for (int i = 0; i < state.numbers.size() - 1; i++)
     {
         int minIndex = i;
 
-        for (int j = i + 1; j < numbers.size(); j++)
+        for (int j = i + 1; j < state.numbers.size(); j++)
         {
-            std::unique_lock<std::mutex> lock(mtx);
+            std::unique_lock<std::mutex> lock(state.mtx);
 
-            numbers.enableAccessCounting();
+            state.numbers.enableAccessCounting();
 
-            if (numbers[j] < numbers[minIndex])
+            if (state.numbers[j] < state.numbers[minIndex])
                 minIndex = j;
 
-            comparisons++;
+            state.comparisons++;
 
-            numbers.disableAccessCounting();
+            state.numbers.disableAccessCounting();
 
             // Unlock before sleeping
             lock.unlock();
@@ -65,38 +56,33 @@ void selectionSort(
 
         if (i != minIndex)
         {
-            std::lock_guard<std::mutex> lock(mtx);
+            std::lock_guard<std::mutex> lock(state.mtx);
 
-            numbers.enableAccessCounting();
+            state.numbers.enableAccessCounting();
 
-            std::swap(numbers[i], numbers[minIndex]);
-            comparisons++;
+            std::swap(state.numbers[i], state.numbers[minIndex]);
+            state.comparisons++;
 
-            numbers.disableAccessCounting();
+            state.numbers.disableAccessCounting();
         }
     }
 
-    sortingComplete = true;
+    state.sortingComplete = true;
 }
 
-void insertionSort(
-    CountingVector<int> &numbers,
-    std::mutex &mtx,
-    int &comparisons,
-    int sortingDelay,
-    bool &sortingComplete)
+void insertionSort(SortState &state, int sortingDelay)
 {
     // BUG: In the visualization, this sort causes popping, seemingly caused by the entire vector
     //      being accessed at onece. It is not clear to me why this happens.
 
-    for (int i = 1; i < numbers.size(); i++)
+    for (int i = 1; i < state.numbers.size(); i++)
     {
-        std::unique_lock<std::mutex> lock(mtx);
-        numbers.enableAccessCounting();
+        std::unique_lock<std::mutex> lock(state.mtx);
+        state.numbers.enableAccessCounting();
 
-        int temp = numbers[i];
+        int temp = state.numbers[i];
 
-        numbers.disableAccessCounting();
+        state.numbers.disableAccessCounting();
         lock.unlock();
 
         int j = i - 1;
@@ -104,19 +90,19 @@ void insertionSort(
         // Using a while true loop so the mutex is locked before checking
         while (true)
         {
-            std::unique_lock<std::mutex> lock(mtx);
+            std::unique_lock<std::mutex> lock(state.mtx);
 
-            numbers.enableAccessCounting();
+            state.numbers.enableAccessCounting();
 
-            if (j < 0 || temp >= numbers[j])
+            if (j < 0 || temp >= state.numbers[j])
                 break;
 
-            numbers[j + 1] = numbers[j];
-            comparisons++;
+            state.numbers[j + 1] = state.numbers[j];
+            state.comparisons++;
 
             j -= 1;
 
-            numbers.disableAccessCounting();
+            state.numbers.disableAccessCounting();
 
             // Unlock before sleeping
             lock.unlock();
@@ -125,13 +111,13 @@ void insertionSort(
         }
 
         lock.lock();
-        numbers.enableAccessCounting();
+        state.numbers.enableAccessCounting();
 
-        numbers[j + 1] = temp;
+        state.numbers[j + 1] = temp;
 
-        numbers.disableAccessCounting();
+        state.numbers.disableAccessCounting();
         lock.unlock();
     }
 
-    sortingComplete = true;
+    state.sortingComplete = true;
 }
