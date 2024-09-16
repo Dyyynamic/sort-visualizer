@@ -32,7 +32,7 @@ bool isNumber(const std::string &s)
 bool validateInput(
     int argc,
     char *argv[],
-    const std::map<std::string, std::function<void(SortState &, int)>> &sortingAlgorithms)
+    const std::map<std::string, std::function<void(SortState &, int, std::atomic<bool> &)>> &sortingAlgorithms)
 {
     if (argc < 4)
     {
@@ -197,7 +197,7 @@ void verify(SortState &state, int &checkingIndex, int sortingDelay)
 
 int main(int argc, char *argv[])
 {
-    const std::map<std::string, std::function<void(SortState &, int)>>
+    const std::map<std::string, std::function<void(SortState &, int, std::atomic<bool> &)>>
         sortingAlgorithms{
             {"bubble", bubbleSort},
             {"selection", selectionSort},
@@ -215,6 +215,9 @@ int main(int argc, char *argv[])
     int sortTime{0};
     int checkingIndex{-1};
     int prevCheckingIndex{-1};
+
+    // Used to stop sorting thread on window close
+    std::atomic<bool> running{true};
 
     // Shared state
     SortState state{
@@ -246,7 +249,7 @@ int main(int argc, char *argv[])
     sf::Clock clock;
 
     // Sort on a separate thread
-    std::thread sortThread(std::ref(sortingAlgorithms.at(sortType)), std::ref(state), sortingDelay);
+    std::thread sortThread(std::ref(sortingAlgorithms.at(sortType)), std::ref(state), sortingDelay, std::ref(running));
 
     while (window.isOpen())
     {
@@ -254,7 +257,13 @@ int main(int argc, char *argv[])
         while (window.pollEvent(event))
         {
             if (event.type == sf::Event::Closed)
+            {
+                // Signal thread to stop
+                running = false;
+                sortThread.join();
+
                 window.close();
+            }
         }
 
         timeElapsed = clock.getElapsedTime().asMilliseconds();

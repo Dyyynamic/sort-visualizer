@@ -4,7 +4,7 @@
 #include <chrono>
 #include <iostream>
 
-void bubbleSort(SortState &state, int sortingDelay)
+void bubbleSort(SortState &state, int sortingDelay, std::atomic<bool> &running)
 {
     for (int i = 0; i < state.numbers.size(); i++)
     {
@@ -24,6 +24,9 @@ void bubbleSort(SortState &state, int sortingDelay)
             // Unlock before sleeping
             lock.unlock();
 
+            if (!running)
+                return;
+
             std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
         }
     }
@@ -31,7 +34,7 @@ void bubbleSort(SortState &state, int sortingDelay)
     state.sortingComplete = true;
 }
 
-void selectionSort(SortState &state, int sortingDelay)
+void selectionSort(SortState &state, int sortingDelay, std::atomic<bool> &running)
 {
     for (int i = 0; i < state.numbers.size() - 1; i++)
     {
@@ -53,6 +56,9 @@ void selectionSort(SortState &state, int sortingDelay)
             // Unlock before sleeping
             lock.unlock();
 
+            if (!running)
+                return;
+
             std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
         }
 
@@ -72,7 +78,7 @@ void selectionSort(SortState &state, int sortingDelay)
     state.sortingComplete = true;
 }
 
-void insertionSort(SortState &state, int sortingDelay)
+void insertionSort(SortState &state, int sortingDelay, std::atomic<bool> &running)
 {
     for (int i = 1; i < state.numbers.size(); i++)
     {
@@ -110,6 +116,9 @@ void insertionSort(SortState &state, int sortingDelay)
 
             // Unlock before sleeping
             lock.unlock();
+
+            if (!running)
+                return;
 
             std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
         }

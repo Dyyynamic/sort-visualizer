@@ -1,2 +1,3 @@
 .vscode
+.fuse_hidden*
 sort
