@@ -212,6 +212,7 @@ int main(int argc, char *argv[])
             {"selection", selectionSort},
             {"insertion", insertionSort},
             {"merge", mergeSort},
+            {"quick", quickSort}
         };
 
     if (!validateInput(argc, argv, sortingAlgorithms))

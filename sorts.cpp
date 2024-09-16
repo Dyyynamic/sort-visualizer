@@ -11,7 +11,6 @@ void bubbleSort(SortState &state, int sortingDelay)
         for (int j = 0; j < state.numbers.size() - i - 1; j++)
         {
             std::unique_lock<std::mutex> lock(state.mtx);
-
             state.numbers.enableAccessCounting();
 
             if (state.numbers[j] > state.numbers[j + 1])
@@ -20,8 +19,6 @@ void bubbleSort(SortState &state, int sortingDelay)
             state.comparisons++;
 
             state.numbers.disableAccessCounting();
-
-            // Unlock before sleeping
             lock.unlock();
 
             if (!state.running)
@@ -43,7 +40,6 @@ void selectionSort(SortState &state, int sortingDelay)
         for (int j = i + 1; j < state.numbers.size(); j++)
         {
             std::unique_lock<std::mutex> lock(state.mtx);
-
             state.numbers.enableAccessCounting();
 
             if (state.numbers[j] < state.numbers[minIndex])
@@ -52,8 +48,6 @@ void selectionSort(SortState &state, int sortingDelay)
             state.comparisons++;
 
             state.numbers.disableAccessCounting();
-
-            // Unlock before sleeping
             lock.unlock();
 
             if (!state.running)
@@ -65,11 +59,9 @@ void selectionSort(SortState &state, int sortingDelay)
         if (i != minIndex)
         {
             std::lock_guard<std::mutex> lock(state.mtx);
-
             state.numbers.enableAccessCounting();
 
             std::swap(state.numbers[i], state.numbers[minIndex]);
-            state.comparisons++;
 
             state.numbers.disableAccessCounting();
         }
@@ -96,14 +88,12 @@ void insertionSort(SortState &state, int sortingDelay)
         while (true)
         {
             std::unique_lock<std::mutex> lock(state.mtx);
-
             state.numbers.enableAccessCounting();
 
             if (j < 0 || temp >= state.numbers[j])
             {
-                // Make sure access counting is disabled before breaking
-                // Lock is unlocked automatically when it goes out of scope
                 state.numbers.disableAccessCounting();
+                lock.unlock();
                 break;
             }
 
@@ -113,8 +103,6 @@ void insertionSort(SortState &state, int sortingDelay)
             j -= 1;
 
             state.numbers.disableAccessCounting();
-
-            // Unlock before sleeping
             lock.unlock();
 
             if (!state.running)
@@ -144,9 +132,30 @@ void merge(SortState &state, int sortingDelay, int left, int mid, int right)
     std::vector<int> R;
 
     for (int i = 0; i < n1; i++)
+    {
+        std::unique_lock<std::mutex> lock(state.mtx);
+        state.numbers.enableAccessCounting();
+
         L.push_back(state.numbers[left + i]);
+
+        state.numbers.disableAccessCounting();
+        lock.unlock();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
+    }
+
     for (int i = 0; i < n2; i++)
+    {
+        std::unique_lock<std::mutex> lock(state.mtx);
+        state.numbers.enableAccessCounting();
+
         R.push_back(state.numbers[mid + 1 + i]);
+
+        state.numbers.disableAccessCounting();
+        lock.unlock();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
+    }
 
     int i = 0;
     int j = 0;
@@ -240,6 +249,69 @@ void mergeHelper(SortState &state, int sortingDelay, int left, int right)
 void mergeSort(SortState &state, int sortingDelay)
 {
     mergeHelper(state, sortingDelay, 0, state.numbers.size() - 1);
+
+    state.sortingComplete = true;
+}
+
+int partition(SortState &state, int sortingDelay, int low, int high)
+{
+    std::unique_lock<std::mutex> lock(state.mtx);
+    state.numbers.enableAccessCounting();
+
+    int pivot = state.numbers[high];
+
+    state.numbers.disableAccessCounting();
+    lock.unlock();
+
+    int i = (low - 1);
+
+    for (int j = low; j <= high - 1; j++) {
+        std::unique_lock<std::mutex> lock(state.mtx);
+        state.numbers.enableAccessCounting();
+
+        if (state.numbers[j] <= pivot) {
+            i++;
+            std::swap(state.numbers[i], state.numbers[j]);
+        }
+
+        state.comparisons++;
+
+        state.numbers.disableAccessCounting();
+        lock.unlock();
+
+        if (!state.running)
+            return -1;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
+    }
+
+    lock.lock();
+    state.numbers.enableAccessCounting();
+
+    std::swap(state.numbers[i + 1], state.numbers[high]);
+
+    state.numbers.disableAccessCounting();
+    lock.unlock();
+
+    return (i + 1);
+}
+
+void quickHelper(SortState &state, int sortingDelay, int low, int high)
+{
+    if (low < high) {
+        int pi = partition(state, sortingDelay, low, high);
+
+        if (pi == -1)
+            return;
+
+        quickHelper(state, sortingDelay, low, pi - 1);
+        quickHelper(state, sortingDelay, pi + 1, high);
+    }
+}
+
+void quickSort(SortState &state, int sortingDelay)
+{
+    quickHelper(state, sortingDelay, 0, state.numbers.size() - 1);
 
     state.sortingComplete = true;
 }
