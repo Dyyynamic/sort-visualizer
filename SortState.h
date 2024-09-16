@@ -10,6 +10,7 @@ struct SortState
     std::mutex mtx;
     int comparisons;
     bool sortingComplete;
+    bool running;
 };
 
 #endif // SORTSTATE_H

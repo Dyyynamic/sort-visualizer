@@ -4,7 +4,7 @@
 #include <chrono>
 #include <iostream>
 
-void bubbleSort(SortState &state, int sortingDelay, std::atomic<bool> &running)
+void bubbleSort(SortState &state, int sortingDelay)
 {
     for (int i = 0; i < state.numbers.size(); i++)
     {
@@ -24,7 +24,7 @@ void bubbleSort(SortState &state, int sortingDelay, std::atomic<bool> &running)
             // Unlock before sleeping
             lock.unlock();
 
-            if (!running)
+            if (!state.running)
                 return;
 
             std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
@@ -34,7 +34,7 @@ void bubbleSort(SortState &state, int sortingDelay, std::atomic<bool> &running)
     state.sortingComplete = true;
 }
 
-void selectionSort(SortState &state, int sortingDelay, std::atomic<bool> &running)
+void selectionSort(SortState &state, int sortingDelay)
 {
     for (int i = 0; i < state.numbers.size() - 1; i++)
     {
@@ -56,7 +56,7 @@ void selectionSort(SortState &state, int sortingDelay, std::atomic<bool> &runnin
             // Unlock before sleeping
             lock.unlock();
 
-            if (!running)
+            if (!state.running)
                 return;
 
             std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
@@ -78,7 +78,7 @@ void selectionSort(SortState &state, int sortingDelay, std::atomic<bool> &runnin
     state.sortingComplete = true;
 }
 
-void insertionSort(SortState &state, int sortingDelay, std::atomic<bool> &running)
+void insertionSort(SortState &state, int sortingDelay)
 {
     for (int i = 1; i < state.numbers.size(); i++)
     {
@@ -117,7 +117,7 @@ void insertionSort(SortState &state, int sortingDelay, std::atomic<bool> &runnin
             // Unlock before sleeping
             lock.unlock();
 
-            if (!running)
+            if (!state.running)
                 return;
 
             std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
@@ -131,6 +131,115 @@ void insertionSort(SortState &state, int sortingDelay, std::atomic<bool> &runnin
         state.numbers.disableAccessCounting();
         lock.unlock();
     }
+
+    state.sortingComplete = true;
+}
+
+void merge(SortState &state, int sortingDelay, int left, int mid, int right)
+{
+    int n1 = mid - left + 1;
+    int n2 = right - mid;
+
+    std::vector<int> L;
+    std::vector<int> R;
+
+    for (int i = 0; i < n1; i++)
+        L.push_back(state.numbers[left + i]);
+    for (int i = 0; i < n2; i++)
+        R.push_back(state.numbers[mid + 1 + i]);
+
+    int i = 0;
+    int j = 0;
+    int k = left;
+
+    while (true)
+    {
+        std::unique_lock<std::mutex> lock(state.mtx);
+        state.numbers.enableAccessCounting();
+
+        if (i >= n1 || j >= n2)
+        {
+            state.numbers.disableAccessCounting();
+            break;
+        }
+
+        if (L[i] <= R[j])
+        {
+            state.numbers[k] = L[i];
+            i++;
+        }
+        else
+        {
+            state.numbers[k] = R[j];
+            j++;
+        }
+
+        k++;
+
+        state.comparisons++;
+
+        state.numbers.disableAccessCounting();
+        lock.unlock();
+
+        if (!state.running)
+            return;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
+    }
+
+    while (i < n1)
+    {
+        std::unique_lock<std::mutex> lock(state.mtx);
+        state.numbers.enableAccessCounting();
+
+        state.numbers[k] = L[i];
+        i++;
+        k++;
+
+        state.numbers.disableAccessCounting();
+        lock.unlock();
+
+        if (!state.running)
+            return;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
+    }
+
+    while (j < n2)
+    {
+        std::unique_lock<std::mutex> lock(state.mtx);
+        state.numbers.enableAccessCounting();
+
+        state.numbers[k] = R[j];
+        j++;
+        k++;
+
+        state.numbers.disableAccessCounting();
+        lock.unlock();
+
+        if (!state.running)
+            return;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
+    }
+}
+
+void mergeHelper(SortState &state, int sortingDelay, int left, int right)
+{
+    if (left >= right)
+        return;
+
+    int mid = left + (right - left) / 2;
+
+    mergeHelper(state, sortingDelay, left, mid);
+    mergeHelper(state, sortingDelay, mid + 1, right);
+
+    merge(state, sortingDelay, left, mid, right);
+}
+
+void mergeSort(SortState &state, int sortingDelay)
+{
+    mergeHelper(state, sortingDelay, 0, state.numbers.size() - 1);
 
     state.sortingComplete = true;
 }

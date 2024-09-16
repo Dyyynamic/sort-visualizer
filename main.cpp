@@ -32,22 +32,30 @@ bool isNumber(const std::string &s)
 bool validateInput(
     int argc,
     char *argv[],
-    const std::map<std::string, std::function<void(SortState &, int, std::atomic<bool> &)>> &sortingAlgorithms)
+    const std::map<std::string, std::function<void(SortState &, int)>> &sortingAlgorithms)
 {
     if (argc < 4)
     {
         std::cerr << "Usage: " << argv[0] << " <sortType> <n> <delay>" << std::endl
                   << std::endl
                   << "Arguments:" << std::endl
-                  << "  sortType - The sorting algorithm to use. Possible values:" << std::endl
-                  << "             bubble: Bubble Sort" << std::endl
-                  << "             selection: Selection Sort" << std::endl
-                  << "             insertion: Insertion Sort" << std::endl
-                  << "  n        - The number of elements to sort." << std::endl
-                  << "  delay    - Sorting delay in milliseconds." << std::endl
+                  << "  sortType  The sorting algorithm to use." << std::endl
+                  << std::string(12, ' ') << "(";
+
+        for (auto &algorithm : sortingAlgorithms)
+        {
+            std::cerr << algorithm.first;
+
+            if (algorithm.first != sortingAlgorithms.rbegin()->first)
+                std::cerr << ", ";
+        }
+
+        std::cerr << ")" << std::endl
+                  << "  n         The number of elements to sort." << std::endl
+                  << "  delay     Sorting delay in milliseconds." << std::endl
                   << std::endl
                   << "Example: " << std::endl
-                  << "  " << argv[0] << " bubble 10 60"
+                  << "  " << argv[0] << " bubble 25 50"
                   << std::endl;
 
         return false;
@@ -198,11 +206,12 @@ void verify(SortState &state, int &checkingIndex, int sortingDelay)
 
 int main(int argc, char *argv[])
 {
-    const std::map<std::string, std::function<void(SortState &, int, std::atomic<bool> &)>>
+    const std::map<std::string, std::function<void(SortState &, int)>>
         sortingAlgorithms{
             {"bubble", bubbleSort},
             {"selection", selectionSort},
             {"insertion", insertionSort},
+            {"merge", mergeSort},
         };
 
     if (!validateInput(argc, argv, sortingAlgorithms))
@@ -217,15 +226,13 @@ int main(int argc, char *argv[])
     int checkingIndex{-1};
     int prevCheckingIndex{-1};
 
-    // Used to stop sorting thread on window close
-    std::atomic<bool> running{true};
-
     // Shared state
     SortState state{
         CountingVector<int>(), // numbers
         std::mutex(),          // mtx
         0,                     // comparisons
-        false                  // sortingComplete
+        false,                 // sortingComplete
+        true                   // running
     };
 
     for (int i = 0; i < n; i++)
@@ -250,7 +257,7 @@ int main(int argc, char *argv[])
     sf::Clock clock;
 
     // Sort on a separate thread
-    std::thread sortThread(std::ref(sortingAlgorithms.at(sortType)), std::ref(state), sortingDelay, std::ref(running));
+    std::thread sortThread(std::ref(sortingAlgorithms.at(sortType)), std::ref(state), sortingDelay);
 
     while (window.isOpen())
     {
@@ -260,7 +267,7 @@ int main(int argc, char *argv[])
             if (event.type == sf::Event::Closed)
             {
                 // Signal thread to stop
-                running = false;
+                state.running = false;
                 sortThread.join();
 
                 window.close();
