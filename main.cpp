@@ -9,6 +9,7 @@
 #include <iostream>
 #include <string>
 #include <functional>
+#include <cmath>
 #include "CountingVector.h"
 #include "sorts.h"
 #include "SortState.h"
@@ -212,7 +213,8 @@ int main(int argc, char *argv[])
             {"selection", selectionSort},
             {"insertion", insertionSort},
             {"merge", mergeSort},
-            {"quick", quickSort}
+            {"quick", quickSort},
+            {"bogo", bogoSort}
         };
 
     if (!validateInput(argc, argv, sortingAlgorithms))

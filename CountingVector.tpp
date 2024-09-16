@@ -1,5 +1,4 @@
 #include "CountingVector.h"
-
 #include <algorithm>
 
 template <typename T>

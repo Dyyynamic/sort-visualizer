@@ -2,7 +2,7 @@
 #include <thread>
 #include <mutex>
 #include <chrono>
-#include <iostream>
+#include <random>
 
 void bubbleSort(SortState &state, int sortingDelay)
 {
@@ -314,4 +314,67 @@ void quickSort(SortState &state, int sortingDelay)
     quickHelper(state, sortingDelay, 0, state.numbers.size() - 1);
 
     state.sortingComplete = true;
+}
+
+void shuffle(SortState &state, int sortingDelay)
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dist(0, state.numbers.size() - 1);
+
+    for (int i = state.numbers.size() - 1; i > 0; i--)
+    {
+        std::unique_lock<std::mutex> lock(state.mtx);
+        state.numbers.enableAccessCounting();
+
+        std::swap(state.numbers[i], state.numbers[dist(gen)]);
+
+        state.numbers.disableAccessCounting();
+        lock.unlock();
+
+        if (!state.running)
+            return;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
+    }
+}
+
+void bogoSort(SortState &state, int sortingDelay)
+{
+    while (!state.sortingComplete)
+    {
+        shuffle(state, sortingDelay);
+
+        for (int i = 0; i < state.numbers.size(); i++)
+        {
+            std::unique_lock<std::mutex> lock(state.mtx);
+            state.numbers.enableAccessCounting();
+
+            state.comparisons++;
+
+            // Try again
+            if (state.numbers[i] < state.numbers[i - 1])
+            {
+                state.numbers.disableAccessCounting();
+                lock.unlock();
+                break;
+            }
+
+            if (i == state.numbers.size() - 1)
+            {
+                state.numbers.disableAccessCounting();
+                lock.unlock();
+                state.sortingComplete = true;
+                break;
+            }
+
+            state.numbers.disableAccessCounting();
+            lock.unlock();
+
+            if (!state.running)
+                return;
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(sortingDelay));
+        }
+    }
 }

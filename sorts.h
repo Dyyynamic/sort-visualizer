@@ -1,9 +1,7 @@
 #ifndef SORTS_H
 #define SORTS_H
 
-#include <atomic>
 #include "SortState.h"
-#include "CountingVector.h"
 
 void bubbleSort(SortState &state, int sortingDelay);
 void selectionSort(SortState &state, int sortingDelay);
@@ -18,5 +16,7 @@ void mergeSort(SortState &state, int sortingDelay);
 int partition(SortState &state, int sortingDelay, int low, int high);
 void quickHelper(SortState &state, int sortingDelay, int low, int high);
 void quickSort(SortState &state, int sortingDelay);
+
+void bogoSort(SortState &state, int sortingDelay);
 
 #endif // SORTS_H
