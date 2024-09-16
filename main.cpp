@@ -128,12 +128,15 @@ void drawBars(
     int &prevCheckingIndex,
     std::vector<int> &lastTimeAccessed)
 {
+    // Don't draw bars if window is too small
+    if (window.getSize().y <= 40) return;
+
     for (int i = 0; i < state.numbers.size(); ++i)
     {
         std::unique_lock<std::mutex> lock(state.mtx);
 
-        const double barWidth{static_cast<double>(WIDTH) / state.numbers.size()};
-        const double barHeight{static_cast<double>(state.numbers[i] * (HEIGHT - 40)) / state.numbers.size()};
+        const double barWidth{static_cast<double>(window.getSize().x) / state.numbers.size()};
+        const double barHeight{static_cast<double>(state.numbers[i] * (window.getSize().y - 40)) / state.numbers.size()};
 
         if (state.numbers.isAccessed(i))
         {
@@ -141,7 +144,7 @@ void drawBars(
             state.numbers.clearAccessed(i);
 
             // Play tone when a number changes
-            const int frequency = 2 * state.numbers[i] * HEIGHT / state.numbers.size();
+            const int frequency = 1760 * (static_cast<double>(state.numbers[i]) / state.numbers.size());
             std::thread playToneThread(playTone, frequency, sortingDelay);
             playToneThread.detach();
         }
@@ -151,7 +154,7 @@ void drawBars(
             prevCheckingIndex = checkingIndex;
 
             // Play tone when checking index changes
-            const int frequency = 2 * state.numbers[checkingIndex] * HEIGHT / state.numbers.size();
+            const int frequency = 1760 * (static_cast<double>(state.numbers[checkingIndex]) / state.numbers.size());
             std::thread playToneThread(playTone, frequency, sortingDelay);
             playToneThread.detach();
         }
@@ -162,14 +165,12 @@ void drawBars(
 
         // Light up the bar for LIGHT_DURATION milliseconds
         if (timeElapsed - lastTimeAccessed[i] < LIGHT_DURATION || i == checkingIndex)
-        {
             rect.setFillColor(sf::Color::Red);
-        }
 
         if (i < checkingIndex)
             rect.setFillColor(sf::Color::Green);
 
-        rect.setPosition(sf::Vector2f(barWidth * i, HEIGHT - barHeight));
+        rect.setPosition(sf::Vector2f(barWidth * i, window.getSize().y - barHeight));
 
         window.draw(rect);
     }
@@ -263,6 +264,10 @@ int main(int argc, char *argv[])
                 sortThread.join();
 
                 window.close();
+            }
+            else if (event.type == sf::Event::Resized)
+            {
+                window.setView(sf::View(sf::FloatRect(0, 0, event.size.width, event.size.height)));
             }
         }
 
